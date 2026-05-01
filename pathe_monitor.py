@@ -446,9 +446,36 @@ def fetch_all_shows(cinema_slugs: List[str]) -> Dict[str, Any]:
             logger.error(f"Error fetching shows for {cinema_slug}: {e}")
     return shows_with_cinema
 
+def init_state(cinema_slugs: List[str], state_file: str) -> None:
+    logger.info("Initializing state without sending notifications...")
+    all_shows = fetch_all_shows(cinema_slugs)
+    seen_movies = set()
+    for slug, show_info in all_shows.items():
+        show_data = show_info['data']
+        if not isinstance(show_data, dict):
+            continue
+        has_avp, _, _ = check_avp_tags(show_data)
+        has_seance, _ = check_seancespeciale(show_data)
+        is_coming_soon = show_data.get("isComingSoon", False)
+        if has_avp:
+            seen_movies.add(f"{slug}_avp")
+        if has_seance:
+            seen_movies.add(f"{slug}_seancespeciale")
+        if is_coming_soon and not has_avp and not has_seance:
+            seen_movies.add(f"{slug}_coming_soon")
+    state = {"seen_movies": list(seen_movies)}
+    save_state(state, state_file)
+    logger.info(f"State initialized with {len(seen_movies)} movie(s) - no notifications sent")
+
 def main() -> None:
     if "--config" in sys.argv:
         configure_city()
+        return
+
+    if "--init-state" in sys.argv:
+        load_env()
+        config = validate_env()
+        init_state(config['CINEMA_SLUGS'], config['STATE_FILE'])
         return
 
     load_env()
