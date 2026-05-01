@@ -53,20 +53,31 @@ jobs:
         [ -n "$COMING_SOON_FOOTER" ] && echo "COMING_SOON_FOOTER=$COMING_SOON_FOOTER" >> .env.pathe
         [ -n "$NOTIFICATION_DELAY" ] && echo "NOTIFICATION_DELAY=$NOTIFICATION_DELAY" >> .env.pathe
 
-    - name: Download state file
+    - name: Download state file from previous run
       id: download-state
-      uses: actions/download-artifact@v4
-      with:
-        name: pathe-movies-state
-        path: .
-      continue-on-error: true
+      run: |
+        RUN_ID=$(gh run list --workflow=monitor.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
+        if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+          echo "Downloading artifact from run $RUN_ID..."
+          gh run download $RUN_ID --name pathe-movies-state --dir . 2>/dev/null
+          if [ -f "pathe_movies_state.json" ]; then
+            echo "download_outcome=success" >> $GITHUB_OUTPUT
+          else
+            echo "download_outcome=failure" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "No previous successful run found"
+          echo "download_outcome=failure" >> $GITHUB_OUTPUT
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Initialize state if first run
-      if: steps.download-state.outcome == 'failure'
+      if: steps.download-state.outputs.download_outcome == 'failure'
       run: python pathe_monitor.py --init-state
 
     - name: Run monitor
-      if: steps.download-state.outcome == 'success'
+      if: steps.download-state.outputs.download_outcome == 'success'
       run: python pathe_monitor.py
 
     - name: Upload state file
