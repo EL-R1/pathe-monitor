@@ -1,0 +1,57 @@
+name: Pathe Monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    environment: ${{ vars.ENVIRONMENT_NAME || '.env.pathe' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Create .env.pathe from secrets
+      env:
+        WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        CINEMA_SLUGS: ${{ secrets.CINEMA_SLUGS }}
+        CITY_SLUG: ${{ secrets.CITY_SLUG }}
+        STATE_FILE: ${{ secrets.STATE_FILE }}
+        EVENT_COLOR: ${{ secrets.EVENT_COLOR }}
+        AVP_COLOR: ${{ secrets.AVP_COLOR }}
+        SEANCE_SPECIALE_COLOR: ${{ secrets.SEANCE_SPECIALE_COLOR }}
+        COMING_SOON_COLOR: ${{ secrets.COMING_SOON_COLOR }}
+        AVP_FOOTER: ${{ secrets.AVP_FOOTER }}
+        SEANCE_SPECIALE_FOOTER: ${{ secrets.SEANCE_SPECIALE_FOOTER }}
+        COMING_SOON_FOOTER: ${{ secrets.COMING_SOON_FOOTER }}
+        NOTIFICATION_DELAY: ${{ secrets.NOTIFICATION_DELAY }}
+      run: |
+        rm -f .env.pathe
+        [ -n "$WEBHOOK_URL" ] && echo "WEBHOOK_URL=$WEBHOOK_URL" >> .env.pathe
+        [ -n "$CINEMA_SLUGS" ] && echo "CINEMA_SLUGS=$CINEMA_SLUGS" >> .env.pathe
+        [ -n "$CITY_SLUG" ] && echo "CITY_SLUG=$CITY_SLUG" >> .env.pathe
+        [ -n "$STATE_FILE" ] && echo "STATE_FILE=$STATE_FILE" >> .env.pathe
+        [ -n "$EVENT_COLOR" ] && echo "EVENT_COLOR=$EVENT_COLOR" >> .env.pathe
+        [ -n "$AVP_COLOR" ] && echo "AVP_COLOR=$AVP_COLOR" >> .env.pathe
+        [ -n "$SEANCE_SPECIALE_COLOR" ] && echo "SEANCE_SPECIALE_COLOR=$SEANCE_SPECIALE_COLOR" >> .env.pathe
+        [ -n "$COMING_SOON_COLOR" ] && echo "COMING_SOON_COLOR=$COMING_SOON_COLOR" >> .env.pathe
+        [ -n "$AVP_FOOTER" ] && echo "AVP_FOOTER=$AVP_FOOTER" >> .env.pathe
+        [ -n "$SEANCE_SPECIALE_FOOTER" ] && echo "SEANCE_SPECIALE_FOOTER=$SEANCE_SPECIALE_FOOTER" >> .env.pathe
+        [ -n "$COMING_SOON_FOOTER" ] && echo "COMING_SOON_FOOTER=$COMING_SOON_FOOTER" >> .env.pathe
+        [ -n "$NOTIFICATION_DELAY" ] && echo "NOTIFICATION_DELAY=$NOTIFICATION_DELAY" >> .env.pathe
+
+    - name: Run monitor
+      run: python pathe_monitor.py
