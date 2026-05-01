@@ -53,5 +53,20 @@ jobs:
         [ -n "$COMING_SOON_FOOTER" ] && echo "COMING_SOON_FOOTER=$COMING_SOON_FOOTER" >> .env.pathe
         [ -n "$NOTIFICATION_DELAY" ] && echo "NOTIFICATION_DELAY=$NOTIFICATION_DELAY" >> .env.pathe
 
+    - name: Download state file
+      uses: actions/download-artifact@v4
+      with:
+        name: pathe-movies-state
+        path: .
+      continue-on-error: true
+
     - name: Run monitor
       run: python pathe_monitor.py
+
+    - name: Upload state file
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pathe-movies-state
+        path: pathe_movies_state.json
+        retention-days: 90

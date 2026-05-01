@@ -17,10 +17,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json",
-    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8"
+    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": "https://www.pathe.fr/",
+    "Origin": "https://www.pathe.fr"
 }
+
+def fetch_with_retry(url: str, max_retries: int = 3, delay: float = 2.0) -> Optional[requests.Response]:
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=15)
+            if response.status_code == 403 and attempt < max_retries - 1:
+                logger.warning(f"403 error, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(delay)
+                continue
+            return response
+        except requests.RequestException as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Request failed, retrying in {delay}s... ({e})")
+                time.sleep(delay)
+            else:
+                raise
+    return None
 
 def load_env() -> None:
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env.pathe")
@@ -65,7 +85,9 @@ def save_config_to_env(city_slug: str, cinema_slugs: List[str]) -> None:
 
 def get_cities() -> List[Dict[str, Any]]:
     try:
-        response = requests.get("https://www.pathe.fr/api/cities", headers=HEADERS, timeout=10)
+        response = fetch_with_retry("https://www.pathe.fr/api/cities")
+        if response is None:
+            return []
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -224,7 +246,9 @@ def generate_google_calendar_link(title: str, sales_opening_dt_str: Optional[str
 def get_show_details(slug: str) -> Optional[Dict[str, Any]]:
     try:
         url = f"https://www.pathe.fr/api/show/{slug}?language=fr"
-        response = requests.get(url, headers=HEADERS, timeout=10)
+        response = fetch_with_retry(url)
+        if response is None:
+            return None
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -406,7 +430,10 @@ def fetch_all_shows(cinema_slugs: List[str]) -> Dict[str, Any]:
     for cinema_slug in cinema_slugs:
         try:
             url = f"https://www.pathe.fr/api/cinema/{cinema_slug}/shows?language=fr"
-            response = requests.get(url, headers=HEADERS, timeout=10)
+            response = fetch_with_retry(url)
+            if response is None:
+                logger.error(f"Failed to fetch shows for {cinema_slug} after retries")
+                continue
             response.raise_for_status()
             data = response.json()
             shows = data.get("shows", {})
