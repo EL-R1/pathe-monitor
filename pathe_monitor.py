@@ -4,9 +4,10 @@ import json
 import os
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import time
 from typing import Optional, Dict, Any, List
+from urllib.parse import quote
 from dotenv import load_dotenv
 
 logging.basicConfig(
@@ -192,6 +193,34 @@ def format_datetime(dt_str: Optional[str]) -> str:
     except (ValueError, TypeError):
         return dt_str
 
+def generate_google_calendar_link(title: str, sales_opening_dt_str: Optional[str], movie_url: Optional[str] = None) -> Optional[str]:
+    if not sales_opening_dt_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(sales_opening_dt_str.replace("Z", "+00:00"))
+        now_utc = datetime.now(timezone.utc)
+        if dt <= now_utc:
+            return None
+        start_str = dt.strftime("%Y%m%dT%H%M%SZ")
+        end_dt = dt + timedelta(minutes=30)
+        end_str = end_dt.strftime("%Y%m%dT%H%M%SZ")
+        event_title = quote(f"Ouverture ventes: {title}")
+        dates_param = f"{start_str}/{end_str}"
+        details = f"Ouverture des ventes pour {title}"
+        if movie_url:
+            details += f"\n{movie_url}"
+        details_encoded = quote(details)
+        return (
+            f"https://calendar.google.com/calendar/render"
+            f"?action=TEMPLATE"
+            f"&text={event_title}"
+            f"&dates={dates_param}"
+            f"&details={details_encoded}"
+        )
+    except (ValueError, TypeError):
+        return None
+
+
 def get_show_details(slug: str) -> Optional[Dict[str, Any]]:
     try:
         url = f"https://www.pathe.fr/api/show/{slug}?language=fr"
@@ -244,6 +273,7 @@ def send_discord_notification(movie_details: Dict[str, Any], slug: str, config: 
 
     sales_opening = movie_details.get("salesOpeningDatetime", "")
     sales_opening_formatted = format_datetime(sales_opening)
+    google_calendar_link = None
 
     is_movie = movie_details.get("isMovie", True)
 
@@ -313,20 +343,33 @@ def send_discord_notification(movie_details: Dict[str, Any], slug: str, config: 
     if not is_movie and notification_type == "coming_soon":
         embed_color = config['EVENT_COLOR']
 
+    if sales_opening and movie_url:
+        google_calendar_link = generate_google_calendar_link(title, sales_opening, movie_url)
+
     poster_path = movie_details.get("posterPath", {})
     poster = poster_path.get("lg", "") if isinstance(poster_path, dict) else ""
+
+    embed_fields = [
+        {"name": "\U0001f4c5 Date de sortie", "value": release_formatted, "inline": True},
+        {"name": "\u23f1\ufe0f Duree", "value": duration, "inline": True},
+        {"name": "\U0001f39f\ufe0f Ouverture des ventes", "value": sales_opening_formatted, "inline": False},
+    ]
+
+    if google_calendar_link:
+        embed_fields.append(
+            {"name": "\U0001f4c5 Ajouter à Google Calendar", "value": google_calendar_link, "inline": False}
+        )
+
+    embed_fields.extend([
+        {"name": "\u2764\ufe0f Wishlist", "value": f"{wishlist_count} personne(s)", "inline": True},
+        {"name": "\U0001f517 Lien", "value": movie_url, "inline": False}
+    ])
 
     embed = {
         "title": embed_title,
         "url": movie_url,
         "color": embed_color,
-        "fields": [
-            {"name": "\U0001f4c5 Date de sortie", "value": release_formatted, "inline": True},
-            {"name": "\u23f1\ufe0f Duree", "value": duration, "inline": True},
-            {"name": "\U0001f39f\ufe0f Ouverture des ventes", "value": sales_opening_formatted, "inline": False},
-            {"name": "\u2764\ufe0f Wishlist", "value": f"{wishlist_count} personne(s)", "inline": True},
-            {"name": "\U0001f517 Lien", "value": movie_url, "inline": False}
-        ],
+        "fields": embed_fields,
         "timestamp": datetime.utcnow().isoformat(),
         "footer": {"text": footer_text}
     }
