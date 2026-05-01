@@ -17,12 +17,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json",
-    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Referer": "https://www.pathe.fr/",
-    "Origin": "https://www.pathe.fr"
+    #"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # "Accept": "application/json",
+    # "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+    # "Accept-Encoding": "gzip, deflate, br",
+    # "Referer": "https://www.pathe.fr/",
+    # "Origin": "https://www.pathe.fr"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "cross-site",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
 }
 
 def fetch_with_retry(url: str, max_retries: int = 3, delay: float = 2.0) -> Optional[requests.Response]:
